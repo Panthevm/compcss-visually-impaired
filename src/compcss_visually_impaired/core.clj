@@ -35,13 +35,13 @@
   [declaration]
   (update declaration :expression
           (fn [value]
-            (let [rgb     (-> (re-seq regex-color-rgba value) first last
-                              (->> (format "[%s]") read-string
-                                   (map #(if (clojure.string/starts-with? (str %) ".")
-                                           (Float/parseFloat (str "0" '.5))
-                                           %))
-                                   vec))
-                  new-color (some->> (try (com.evocomputing.colors/create-color rgb)
+            (let [rgb     (some-> (re-seq regex-color-rgba value) first last
+                                  (->> (format "[%s]") read-string
+                                       (map #(if (clojure.string/starts-with? (str %) ".")
+                                               (Float/parseFloat (str "0" '.5))
+                                               %))
+                                       vec))
+                  new-color (some->> (try (com.evocomputing.colors/create-color (or rgb value))
                                           (catch Exception _ nil))
                                      :hsl last color-resolve)]
               (or new-color value)))))
