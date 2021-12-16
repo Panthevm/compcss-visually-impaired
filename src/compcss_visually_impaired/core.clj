@@ -56,12 +56,17 @@
   (update data :declarations
           (partial map style-obr)))
 
+
 (defn middleware
   [handler]
   (fn [configuration db]
-    (map
-     (fn [data]
-       (if (= (data :type) :style-rule)
-         (style-update data)
-         data))
-     (:compcss.core/output-stylesheets db))))
+    (handler
+     configuration
+     (update db :compcss.core/output-stylesheets
+             (fn [stylesheets]
+               (map
+                (fn [data]
+                  (if (= (data :type) :style-rule)
+                    (style-update data)
+                    data))
+                stylesheets))))))
