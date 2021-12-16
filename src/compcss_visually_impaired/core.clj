@@ -6,27 +6,6 @@
 
 (def regex-color-rgba #"rgb(|a)\((.*?)\)")
 
-(def db
-  {:compcss.core/output-stylesheets
-   [{:selectors
-     [{:members
-       [{:value "foo" :group :type :type :member-simple}
-        {:name  " " :type :selector-combinator}
-        {:value "bar" :group :type :type :member-simple}]
-       :type :selector}]
-     :declarations
-     [{:property   "font"
-       :expression "16px 16 fam"
-       :important? false
-       :type       :declaration}
-      {:property "color"
-       :expression "rgba(160, 160, 160, .5)"
-       :important? false
-       :type       :declaration}]
-     :type :style-rule}]})
-
-;; формула для расчета яркости (0.2126*R + 0.7152*G + 0.0722*B)
-
 (defmulti style-obr
   (fn [declaration]
     (cond (#{"font-size" "font"} (:property declaration))
@@ -72,16 +51,14 @@
   [declaration]
   declaration)
 
-
-
 (defn style-update
   [data]
   (update data :declarations
           (partial map style-obr)))
 
-(defn --middleware
+(defn middleware
   [handler]
-  (fn [configuration _]
+  (fn [configuration db]
     (map
      (fn [data]
        (if (= (data :type) :style-rule)
