@@ -88,11 +88,17 @@
        (some (comp
               (partial contains? #{"background" "background-color"})
               :property)
-             declarations)
-       )
+             declarations))
       (conj {:property   "border"
              :important? true
              :expression "2px solid black"
+             :type       :declaration})
+      (some (fn [{members :members}]
+              (some #(-> % :value (= "body")) members))
+            selectors)
+      (conj {:property   "font-size"
+             :important? true
+             :expression "22px"
              :type       :declaration})
       (and (some (fn [{members :members}]
                    (some #(and (-> % :group #{:pseudo})
