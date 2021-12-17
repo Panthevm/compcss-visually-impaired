@@ -1,72 +1,80 @@
 (ns compcss-visually-impaired.core
-  (:require [clojure.string]
-            [com.evocomputing.colors]))
+  (:require
+   [clojure.string]
+   [com.evocomputing.colors]))
 
+
+(defmulti declaration :property)
 (def regex-value-unit #"(\d+\.?\d*)px")
+(def regex-color-rgb  #"rgb(|a)\((.*?)\)")
 
-(def regex-color-rgba #"rgb(|a)\((.*?)\)")
-
-(defmulti style-obr
-  (fn [declaration]
-    (cond (#{"font-size" "font"} (:property declaration))
-          "font-size"
-          (#{"color" "background-color" "background"} (:property declaration))
-          "colors")))
-
-(defmethod style-obr
+(defmethod declaration
   "font-size"
-  [declaration]
-  (update declaration :expression
-          (fn [value]
-            (let [old-val (->> value (re-seq regex-value-unit) first)
-                  new-val (some-> old-val second Integer/parseInt (+ 5) str)]
-              (or (some-> value (clojure.string/replace (str (second old-val) "px") (str new-val "px"))) value)))))
+  [value]
+  (let [old-val (->> value :expression (re-seq regex-value-unit) first)
+        new-val (some-> old-val second Integer/parseInt (+ 5) str)]
+    (update value :expression
+            (fn [expression]
+              (or (some->
+                   value
+                   (clojure.string/replace
+                    (str (second old-val) "px")
+                    (str new-val "px")))
+                  value)))))
+
+(defmethod declaration
+  "background"
+  [value]
+  (let [rgb-match (re-find regex-color-rgb (:expression value))]
+    (cond
+      (first rgb-match)
+      (update value :expression
+              (fn [expression]
+                (clojure.string/replace
+                 expression
+                 (first rgb-match)
+                 "white")))
+      :else value)))
+
+(defmethod declaration
+  "background-color"
+  [value]
+  (assoc value :expression "white"))
 
 
-(defn color-resolve
-  [hsl-lightness]
-  (cond (> hsl-lightness 70)
-        "#ffffff"
-        (<= hsl-lightness 70)
-        "#000000"))
+(defmethod declaration :default
+  [value]
+  value)
 
-(defmethod style-obr
-  "colors"
-  [declaration]
-  (update declaration :expression
-          (fn [value]
-            (let [rgb     (some-> (re-seq regex-color-rgba value) first last
-                                  (->> (format "[%s]") read-string
-                                       (map #(if (clojure.string/starts-with? (str %) ".")
-                                               (Float/parseFloat (str "0" '.5))
-                                               %))
-                                       vec))
-                  new-color (some->> (try (com.evocomputing.colors/create-color (or rgb value))
-                                          (catch Exception _ nil))
-                                     :hsl last color-resolve)]
-              (or new-color value)))))
+(defn declarations-update
+  [declarations]
+  (let [declarations (map declaration declarations)]
+    (cond-> declarations
+      (some (comp
+             (partial contains? #{"background" "background-color"})
+             :property)
+            declarations)
+      (conj {:property   "border"
+             :important? false
+             :expression "2px solid black"
+             :type       :declaration}))))
 
-(defmethod style-obr
-  :default
-  [declaration]
-  declaration)
-
-(defn style-update
-  [data]
-  (update data :declarations
-          (partial map style-obr)))
+(defn stylesheets-update
+  [stylesheets]
+  (map
+   (fn [stylesheet]
+     (case (:type stylesheet)
+       :style-rule
+       (update stylesheet :declarations declarations-update)
+       :media-rule
+       (update stylesheet :rules stylesheets-update)
+       stylesheet))
+   stylesheets))
 
 
 (defn middleware
   [handler]
   (fn [configuration db]
-    (handler
-     configuration
-     (update db :compcss.core/output-stylesheets
-             (fn [stylesheets]
-               (map
-                (fn [data]
-                  (if (= (data :type) :style-rule)
-                    (style-update data)
-                    data))
-                stylesheets))))))
+    (->>
+     (update db :compcss.core/output-stylesheets stylesheets-update)
+     (handler configuration))))
