@@ -32,15 +32,24 @@
   "font-size"
   [value]
   (let [old-val (->> value :expression (re-seq regex-value-unit) first)
-        new-val (some-> old-val second Integer/parseInt (+ 5) str)]
+        new-val (some-> old-val second Integer/parseInt (+ 7) str)]
     (update value :expression
             (fn [expression]
-              (or (some->
-                   expression
-                   (clojure.string/replace
-                    (str (second old-val) "px")
-                    (str new-val "px")))
-                  expression)))))
+              (str 
+               (or (some->
+                    expression
+                    (clojure.string/replace
+                     (str (second old-val) "px")
+                     (str new-val "px")))
+                   expression)
+               "!important")))))
+
+(defn color-resolve
+  [hsl-lightness]
+  (cond (> hsl-lightness 80)
+        "#ffffff"
+        (<= hsl-lightness 70)
+        "#000000"))
 
 (defmethod declaration
   "background"
@@ -53,18 +62,18 @@
                 (clojure.string/replace
                  expression
                  (first rgb-match)
-                 "white")))
+                 "white !important")))
       :else value)))
 
 (defmethod declaration
   "color"
   [value]
-  (assoc value :expression "black"))
+  (assoc value :expression "black !important"))
 
 (defmethod declaration
   "background-color"
   [value]
-  (assoc value :expression "white"))
+  (assoc value :expression "white !important"))
 
 
 (defmethod declaration :default
@@ -75,23 +84,29 @@
   [declarations selectors]
   (let [declarations (map declaration declarations)]
     (cond-> declarations
-      (some (comp
-             (partial contains? #{"background" "background-color"})
-             :property)
-            declarations)
+      (and
+       (some (comp
+              (partial contains? #{"background" "background-color"})
+              :property)
+             declarations)
+       )
       (conj {:property   "border"
-             :important? false
+             :important? true
              :expression "2px solid black"
              :type       :declaration})
-      (and (some (fn [{members :members}] (some #(-> % :group #{:psevdo}) members)) selectors)
-           (some (comp (partial contains? #{"color" "background-color" "background"}) :property) declarations))
+      (and (some (fn [{members :members}]
+                   (some #(and (-> % :group #{:pseudo})
+                               (-> % :value (= ":hover"))) members))
+                 selectors)
+           (some (comp (partial contains? #{"color" "background-color" "background"}) :property)
+                 declarations))
       (-> (->> (remove (comp #{"color" "background-color" "background"} :property)))
           (conj {:property   "color"
-                 :important? false
+                 :important? true
                  :expression "white"
                  :type       :declaration}
                 {:property   "background-color"
-                 :important? false
+                 :important? true
                  :expression "black"
                  :type       :declaration})))))
 
