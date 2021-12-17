@@ -68,12 +68,12 @@
 (defmethod declaration
   "color"
   [value]
-  (assoc value :expression "black !important"))
+  (assoc value :expression "black"))
 
 (defmethod declaration
   "background-color"
   [value]
-  (assoc value :expression "white !important"))
+  (assoc value :expression "white"))
 
 
 (defmethod declaration :default
