@@ -8,6 +8,26 @@
 (def regex-value-unit #"(\d+\.?\d*)px")
 (def regex-color-rgb  #"rgb(|a)\((.*?)\)")
 
+(def db
+  {:compcss.core/output-stylesheets
+   [{:selectors
+     [{:members
+       [{:value "foo" :group :type :type :member-simple}
+        {:name  " " :type :selector-combinator}
+        {:value "bar" :group :type :type :member-simple}]
+       :type :selector}]
+     :declarations
+     [{:property   "font"
+       :expression "16px 16 fam"
+       :important? false
+       :type       :declaration}
+      {:property "color"
+       :expression "rgba(160, 160, 160, .5)"
+       :important? false
+       :type       :declaration}]
+     :type :style-rule}]})
+
+
 (defmethod declaration
   "font-size"
   [value]
@@ -16,11 +36,11 @@
     (update value :expression
             (fn [expression]
               (or (some->
-                   value
+                   expression
                    (clojure.string/replace
                     (str (second old-val) "px")
                     (str new-val "px")))
-                  value)))))
+                  expression)))))
 
 (defmethod declaration
   "background"
@@ -37,6 +57,11 @@
       :else value)))
 
 (defmethod declaration
+  "color"
+  [value]
+  (assoc value :expression "black"))
+
+(defmethod declaration
   "background-color"
   [value]
   (assoc value :expression "white"))
@@ -47,7 +72,7 @@
   value)
 
 (defn declarations-update
-  [declarations]
+  [declarations selectors]
   (let [declarations (map declaration declarations)]
     (cond-> declarations
       (some (comp
@@ -57,7 +82,18 @@
       (conj {:property   "border"
              :important? false
              :expression "2px solid black"
-             :type       :declaration}))))
+             :type       :declaration})
+      (and (some (fn [{members :members}] (some #(-> % :group #{:psevdo}) members)) selectors)
+           (some (comp (partial contains? #{"color" "background-color" "background"}) :property) declarations))
+      (-> (->> (remove (comp #{"color" "background-color" "background"} :property)))
+          (conj {:property   "color"
+                 :important? false
+                 :expression "white"
+                 :type       :declaration}
+                {:property   "background-color"
+                 :important? false
+                 :expression "black"
+                 :type       :declaration})))))
 
 (defn stylesheets-update
   [stylesheets]
@@ -65,7 +101,7 @@
    (fn [stylesheet]
      (case (:type stylesheet)
        :style-rule
-       (update stylesheet :declarations declarations-update)
+       (update stylesheet :declarations declarations-update (:selectors stylesheet))
        :media-rule
        (update stylesheet :rules stylesheets-update)
        stylesheet))
